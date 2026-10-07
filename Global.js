@@ -8,6 +8,14 @@
  * cuando se llama con ?config=app — evita tener que hardcodear la URL /exec en el APK.
  */
 function doGet(e) {
+  // En la demo no hay APK que configurar: el endpoint no existe.
+  if (MODO_DEMO) {
+    return HtmlService.createHtmlOutputFromFile('Index')
+        .setTitle('SLIMAPP — Demo de portafolio')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+        .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+  }
+
   // Endpoint de configuración para la app móvil — responde ANTES de servir el HTML
   if (e && e.parameter && e.parameter.config === 'app') {
     var props = PropertiesService.getScriptProperties();
@@ -52,6 +60,97 @@ var LIMITE_ARCHIVO_MB = 15;
 // Límite TOTAL combinado de adjuntos para correos a la empresa (módulo Trámites).
 // Gmail permite máx. 25MB por correo; se usa 20MB como margen de seguridad.
 var LIMITE_TOTAL_ADJUNTOS_MB = 20;
+
+// ==========================================
+// MODO DEMO — VERSIÓN PÚBLICA DE PORTAFOLIO
+// ==========================================
+// Esta copia del proyecto es un cascarón: muestra las interfaces y el flujo de
+// cada módulo, pero no toca datos de socios ni envía correos. El candado se
+// aplica en el SERVIDOR, que es lo único que un visitante no puede alterar
+// desde la consola del navegador:
+//
+//  • Planillas: solo se abren las de DEMO_SPREADSHEETS_PERMITIDAS (juego y
+//    noticias, sin datos personales). Cualquier otra clave queda vacía en
+//    CONFIG y getSpreadsheet() la rechaza.
+//  • Carpetas de Drive y correos institucionales: vacíos.
+//  • Correo y Drive: las funciones de envío/subida no hacen nada, y además el
+//    manifiesto (appsscript.json) ya no pide los scopes de Gmail, MailApp,
+//    Drive ni UrlFetch — aunque quedara una llamada suelta, Google la rechaza.
+//  • Roles: nadie tiene privilegios en el servidor. La cuenta "admin demo"
+//    solo desbloquea las pantallas de administración en el navegador, y sus
+//    acciones las responde la capa demo de Index.html.
+//  • Activadores: nunca corren.
+//
+// La constante vive en el código, no en PropertiesService, para que no se
+// pueda "apagar" la demo cambiando una propiedad.
+var MODO_DEMO = true;
+
+var DEMO_SPREADSHEETS_PERMITIDAS = ['GAMIFICACION', 'NOTICIAS'];
+
+var MENSAJE_DEMO = 'Esta es una versión de demostración: la acción está deshabilitada y no se guardó ningún dato.';
+
+// Credenciales públicas de la demo (se muestran en la pantalla de login).
+// RUT ficticios con dígito verificador válido.
+var DEMO_CUENTAS = {
+  '111111111': { clave: 'DEMO', rol: 'SOCIO' },
+  '222222222': { clave: 'DEMO', rol: 'ADMIN' }
+};
+
+// Cada ingreso a la demo recibe una identidad de servidor propia ("DEMO" + 6
+// dígitos). Así el progreso de SLIM Quest es por visitante: el quiz diario de
+// uno no le cierra el día a los demás, y el ranking muestra a cada visitante.
+var DEMO_PREFIJO_VISITANTE = 'DEMO';
+
+function _esRutDemo_(rutLimpio) {
+  var r = String(rutLimpio || '');
+  return !!DEMO_CUENTAS[r] || new RegExp('^' + DEMO_PREFIJO_VISITANTE + '\\d{6}$').test(r);
+}
+
+/**
+ * Perfil ficticio con la misma forma que obtenerUsuarioPorRut(). Ningún campo
+ * sale de una planilla.
+ */
+function _usuarioDemo_(rutLimpio) {
+  if (!_esRutDemo_(rutLimpio)) return { encontrado: false };
+  var cuenta = DEMO_CUENTAS[rutLimpio];
+  var esVisitante = !cuenta;
+  return {
+    encontrado:       true,
+    rut:              esVisitante ? rutLimpio : formatRutServer(rutLimpio),
+    nombre:           esVisitante ? 'VISITANTE ' + rutLimpio.slice(-4)
+                                  : (cuenta.rol === 'ADMIN' ? 'ADMINISTRADOR DEMO' : 'SOCIO DEMO'),
+    correo:           'socio.ejemplo@gmail.com',
+    region:           '07. RM Region Metropolitana - Santiago.',
+    fechaIngreso:     '01-03-2020',
+    cargo:            'Operador Logístico',
+    site:             'Centro de Distribución Demo',
+    estado:           'ACTIVO',
+    // En el servidor nadie es más que SOCIO: ver verificarRolUsuario().
+    rol:              'SOCIO',
+    contacto:         '+56912345678',
+    estadoNegColect:  'ADHERIDO',
+    banco:            'Banco Ejemplo',
+    tipoCuenta:       'Cuenta Vista',
+    numeroCuenta:     '000123456789',
+    supervisor:       'Jefatura Ejemplo',
+    correoSupervisor: 'correo@ejemplo.com'
+  };
+}
+
+/**
+ * true si el correo debe omitirse (demo). Va delante de CADA MailApp/GmailApp:
+ *   if (!_correoBloqueadoDemo_('origen')) MailApp.sendEmail({...});
+ */
+function _correoBloqueadoDemo_(origen) {
+  if (!MODO_DEMO) return false;
+  Logger.log('✉️ ' + (origen || 'correo') + ': envío omitido (versión demo).');
+  return true;
+}
+
+/** Respuesta estándar de una acción bloqueada en la demo. */
+function _respuestaDemo_() {
+  return { success: false, demo: true, message: MENSAJE_DEMO };
+}
 
 // ==========================================
 // HELPERS DE ACCESO A SPREADSHEETS Y HOJAS
@@ -105,6 +204,16 @@ function _ensureConfig() {
     };
 
     WEBAPP_BASE_URL = props['WEBAPP_URL'] || '';
+
+    // Demo: aunque alguien cargue IDs reales en las propiedades, solo quedan
+    // los de las planillas permitidas. Sin carpetas ni correos.
+    if (MODO_DEMO) {
+      Object.keys(CONFIG.SPREADSHEETS).forEach(function(clave) {
+        if (DEMO_SPREADSHEETS_PERMITIDAS.indexOf(clave) === -1) CONFIG.SPREADSHEETS[clave] = '';
+      });
+      CONFIG.CARPETAS = {};
+      CONFIG.CORREOS  = {};
+    }
     Logger.log('_ensureConfig: OK — CARPETAS keys: ' + Object.keys(CONFIG.CARPETAS).join(', '));
   } catch (e) {
     Logger.log('_ensureConfig: ERROR CRÍTICO al cargar configuración: ' + e);
@@ -119,6 +228,9 @@ function _ensureConfig() {
  */
 function getSpreadsheet(spreadsheetKey) {
   _ensureConfig();
+  if (MODO_DEMO && DEMO_SPREADSHEETS_PERMITIDAS.indexOf(spreadsheetKey) === -1) {
+    throw new Error('Spreadsheet "' + spreadsheetKey + '" deshabilitado en la versión demo.');
+  }
   var spreadsheetId = CONFIG.SPREADSHEETS[spreadsheetKey];
   if (!spreadsheetId) {
     throw new Error('Spreadsheet "' + spreadsheetKey + '" no configurado. Ejecuta inicializarConfiguracion() desde el editor GAS.');
@@ -848,6 +960,7 @@ function validarCorreosParaPermisos(beneficiario, gestor, esGestionDirigente) {
  * @param {string} [rol] 'reader' (por defecto) o 'writer'.
  */
 function otorgarPermisoSilencioso_(fileId, correo, rol) {
+  if (MODO_DEMO) throw new Error('otorgarPermisoSilencioso_: Drive deshabilitado en la versión demo.');
   var valor = String(correo || '').trim().toLowerCase();
   if (!fileId || !valor) {
     throw new Error('otorgarPermisoSilencioso_: falta fileId o correo.');
@@ -901,6 +1014,11 @@ function esEjecucionDeActivador_(e) {
  *   if (activadorFueraDeProduccion_(e, 'nombreFuncion')) return;
  */
 function activadorFueraDeProduccion_(e, nombreFuncion) {
+  // La demo nunca procesa nada en segundo plano, ni siquiera a mano.
+  if (MODO_DEMO) {
+    Logger.log('🔒 ' + (nombreFuncion || 'activador') + ': deshabilitado en la versión demo.');
+    return true;
+  }
   if (!esEjecucionDeActivador_(e)) return false;
   if (ScriptApp.getScriptId() === SCRIPT_ID_PRODUCCION) return false;
 
@@ -921,6 +1039,10 @@ function activadorFueraDeProduccion_(e, nombreFuncion) {
  */
 function subirArchivoConPermisos(archivoData, carpetaId, nombreArchivo, correosParaPermisos, correosAdicionales) {
   correosAdicionales = correosAdicionales || [];
+
+  if (MODO_DEMO) {
+    return { success: false, url: '', permisosOtorgados: [], permisosError: [], mensajeError: MENSAJE_DEMO };
+  }
 
   var resultado = {
     success: false,
@@ -1033,6 +1155,7 @@ function generarAlertaPermisos(validacionCorreos, resultadoSubida) {
  *   var res = compartirArchivoConRol(resultadoSubida.fileId, 'ADMIN', 'editar');
  */
 function compartirArchivoConRol(fileId, rolAsignado, tipoPermiso) {
+  if (MODO_DEMO) return { success: false, correos: [], errores: [], mensaje: MENSAJE_DEMO };
   try {
     var sheet = getSheet('USUARIOS', 'CUENTAS_VALIDAS');
     if (!sheet) return { success: false, correos: [], errores: [], mensaje: 'Hoja CUENTAS_VALIDAS no encontrada. Verifica CONFIG_HOJAS en PropertiesService.' };
@@ -1276,6 +1399,7 @@ function _construirHtmlCorreoEstilizado(titulo, mensaje, detalles, colorTema, pe
  *        Omitirlo mantiene el pie "no respondas a este correo" de siempre.
  */
 function enviarCorreoEstilizado(destinatario, asunto, titulo, mensaje, detalles, colorTema, permiteRespuesta) {
+  if (_correoBloqueadoDemo_('enviarCorreoEstilizado')) return;
   try {
     if (!destinatario || !destinatario.includes("@")) {
       console.log("Correo inválido: " + destinatario);
@@ -1311,6 +1435,9 @@ function enviarCorreoEstilizado(destinatario, asunto, titulo, mensaje, detalles,
  * @returns {{success:boolean, destinatarios:string[], cc:string[], message:string}}
  */
 function enviarCorreoEstilizadoConCopia(destinatarios, ccCorreos, asunto, titulo, mensaje, detalles, colorTema, permiteRespuesta) {
+  if (_correoBloqueadoDemo_('enviarCorreoEstilizadoConCopia')) {
+    return { success: false, destinatarios: [], cc: [], message: MENSAJE_DEMO };
+  }
   try {
     var paraEntrada = Array.isArray(destinatarios) ? destinatarios : (destinatarios ? [destinatarios] : []);
     var paraVistos  = {};
@@ -1372,6 +1499,7 @@ function enviarCorreoEstilizadoConCopia(destinatarios, ccCorreos, asunto, titulo
  * @returns {{success:boolean, message:string}}
  */
 function enviarCorreoFormalConAdjuntos(destinatarios, asunto, htmlBody, adjuntos, ccCorreos, replyTo) {
+  if (_correoBloqueadoDemo_('enviarCorreoFormalConAdjuntos')) return { success: false, message: MENSAJE_DEMO };
   try {
     var destinosValidos = (destinatarios || []).filter(function(c) { return esCorreoValido(c); });
     if (destinosValidos.length === 0) {
@@ -1424,6 +1552,11 @@ function enviarCorreoFormalConAdjuntos(destinatarios, asunto, htmlBody, adjuntos
  * @returns {Object} {autorizado, mensaje, rol}
  */
 function verificarRolUsuario(rut, rolesPermitidos) {
+  // Demo: cualquiera puede entrar como "admin demo", así que el servidor no
+  // reconoce privilegios. Solo pasa lo que también puede hacer un SOCIO.
+  if (MODO_DEMO && rolesPermitidos.map(function(r) { return String(r).toUpperCase(); }).indexOf('SOCIO') === -1) {
+    return { autorizado: false, mensaje: MENSAJE_DEMO, rol: 'SOCIO' };
+  }
   try {
     var usuario = obtenerUsuarioPorRut(rut);
     if (!usuario.encontrado) {
@@ -1541,6 +1674,7 @@ function obtenerEstadosSwitchDashboard() {
  * Sube la captura al mismo directorio del spreadsheet si se adjuntó.
  */
 function registrarReporteBug(datos, archivoData) {
+  if (MODO_DEMO) return _respuestaDemo_();
   try {
     _ensureConfig();
     var ssId = CONFIG.SPREADSHEETS.REPORTES_BUGS;
@@ -1691,6 +1825,10 @@ function _detallesSinEnlacesDrive(detalles) {
 
 function enviarDocumentosARepLegalAdjuntos(urlsOIds, asunto, titulo, mensaje, detalles, colorTema) {
   var resultado = { success: false, destinatarios: [], adjuntados: 0, omitidos: [], message: '' };
+  if (_correoBloqueadoDemo_('enviarDocumentosARepLegalAdjuntos')) {
+    resultado.message = MENSAJE_DEMO;
+    return resultado;
+  }
 
   try {
     var repLegal = obtenerCorreosRepLegal();

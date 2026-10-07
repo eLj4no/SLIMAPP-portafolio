@@ -427,6 +427,7 @@ function listarNoticiasAdmin(sessionToken) {
  *   desde, hasta, zona, textoBoton, abre, enlace, orden}; fechas 'yyyy-mm-dd'.
  */
 function guardarNoticiaAdmin(sessionToken, datos) {
+  if (MODO_DEMO) return _respuestaDemo_();
   _ensureConfig();
   var lock = LockService.getScriptLock();
   try {
@@ -522,6 +523,7 @@ function guardarNoticiaAdmin(sessionToken, datos) {
 
 /** Enciende o apaga una noticia sin abrir el formulario. */
 function cambiarEstadoNoticiaAdmin(sessionToken, fila, tituloOriginal, activa) {
+  if (MODO_DEMO) return _respuestaDemo_();
   _ensureConfig();
   var lock = LockService.getScriptLock();
   try {

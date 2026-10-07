@@ -29,6 +29,308 @@
         _aplicarApariencia(pref);
       })();
     </script>
+    <script>
+      // ==========================================================
+      // CAPA DEMO — VERSIÓN DE PORTAFOLIO
+      // ==========================================================
+      // Esta copia de SLIMAPP no tiene datos de socios. Todas las llamadas al
+      // servidor pasan por aquí:
+      //
+      //  • DEMO_EN_VIVO: lo que el servidor sí atiende en la demo (login con
+      //    cuentas ficticias, SLIM Quest y noticias). Ver MODO_DEMO en Global.js.
+      //  • DEMO_RESPUESTAS: datos ficticios con la misma forma que devolvería
+      //    producción, para que cada pantalla se vea completa.
+      //  • Todo lo demás (envíos, cambios, eliminaciones) responde con un aviso
+      //    de demo: no se guarda nada y no se envía ningún correo.
+      //
+      // La seguridad NO depende de esta capa: aunque alguien llame al servidor
+      // directo desde la consola, Global.js rechaza las planillas con datos
+      // personales, el correo y Drive.
+      //
+      // Abierto fuera de Apps Script (por ejemplo, Index.html desde el disco o
+      // en GitHub Pages), todo se responde aquí y la demo funciona sin servidor.
+      (function () {
+        var MENSAJE_DEMO = 'Versión de demostración: no se guardó ningún dato ni se envió ningún correo. En producción, aquí se registra la solicitud y se notifica a los responsables.';
+        var hayServidor = (typeof google !== 'undefined' && google.script && google.script.run);
+
+        var DEMO_EN_VIVO = /^(validarUsuario|obtenerDatosUsuario|cerrarSesionUsuario|recuperarContrasena|enviarContrasenaCorreo|obtenerNoticiasInicio|quest(?!Informe)\w+)$/;
+
+        var ahora = Date.now();
+        var DIA = 86400000;
+        var ok = function (extra) { var r = { success: true, message: MENSAJE_DEMO }; for (var k in extra) r[k] = extra[k]; return r; };
+
+        // ---------- Datos ficticios ----------
+        var perfilDemo = {
+          rut: '11.111.111-1', nombre: 'SOCIO DEMO', cargo: 'Operador Logístico', site: 'Centro de Distribución Demo',
+          fechaIngreso: '01-03-2020', region: '07. RM Region Metropolitana - Santiago.', estado: 'ACTIVO',
+          correo: 'socio.ejemplo@gmail.com', contacto: '+56912345678', estadoNegColect: 'ADHERIDO',
+          banco: 'Banco Ejemplo', tipoCuenta: 'Cuenta Vista', numeroCuenta: '000123456789',
+          tallaPolera: 'M', tallaPolar: 'L', tallaPantalon: '42', tallaCalzado: '41', calzadoEspecial: 'NO', urlCertPieDiabetico: '',
+          supervisor: 'Jefatura Ejemplo', correoSupervisor: 'correo@ejemplo.com', estadoCredencial: 'ENTREGADA',
+          docFallecimientoUrl: '', docFallecimientoEstado: 'SIN DOCUMENTO', docFallecimientoFecha: ''
+        };
+
+        var prestamos = [
+          { id: 'PR-0012', fecha: '18/09/2026 10:24', tipo: 'Personal - Opción A', monto: '$300.000', cuotas: '6', medio: 'Cuenta Vista', estado: 'Solicitado', observacion: '', fechaTermino: '18/03/2027', gestion: 'Socio', nomDirigente: '', urlComprobanteVacaciones: '' },
+          { id: 'PR-0007', fecha: '02/01/2026 12:30', tipo: 'Vacaciones', monto: '$150.000', cuotas: '3', medio: 'Cuenta Vista', estado: 'Pagado', observacion: 'Depositado el 05/01/2026.', fechaTermino: '02/04/2026', gestion: 'Dirigente', nomDirigente: 'Dirigente Ejemplo', urlComprobanteVacaciones: '' }
+        ];
+        var justificaciones = [
+          { id: 'JU-0031', fecha: '16/08/2026 09:12', tipo: 'Licencia Médica', motivo: 'Reposo indicado por el médico tratante.', url: '', estado: 'Aprobada', obs: 'Documento validado.', asamblea: 'ASM-2026-08', gestion: 'Socio', nomDirigente: '' },
+          { id: 'JU-0019', fecha: '12/05/2026 18:40', tipo: 'Turno laboral', motivo: 'Turno de noche coincidente con la asamblea.', url: '', estado: 'Enviado', obs: '', asamblea: 'ASM-2026-05', gestion: 'Socio', nomDirigente: '' }
+        ];
+        var apelaciones = [
+          { id: 'AP-0004', fecha: '15/07/2026 11:02', mesApelacion: '2026-06', tipoMotivo: 'Licencia Médica', detalleMotivo: 'Estaba con licencia el día de la asamblea.', urlComprobante: '', urlLiquidacion: '', estado: 'Acogida', obs: 'Se devuelve el descuento en la próxima liquidación.', gestion: 'Socio', nomDirigente: '', urlComprobanteDevolucion: '' }
+        ];
+        var permisosMedicos = [
+          { id: 'PM-0010', fecha: '03/09/2026 08:15', tipoPermiso: 'Hora médica', fechaInicio: '05/09/2026', motivo: 'Control anual.', urlDocumento: '', estado: 'Aprobado', gestion: 'Socio', nomDirigente: '' }
+        ];
+        var denuncias = [
+          { id: 'DJ-0002', fecha: '01/08/2026 10:00:00', categoria: 'Ley Karin (Ley 21.643)', subcategoria: 'Acoso laboral', tipoCargo: 'Supervisor / Jefatura', denunciado: 'Persona de ejemplo', lugar: 'Centro de Distribución Demo', fechaEvento: '2026-07-28', descripcion: 'Descripción de ejemplo para la demo.', urlArchivo: 'Sin archivo', estado: 'En revisión', gestion: 'Socio' }
+        ];
+        var gestiones = [
+          { id: 'GE-0005', fecha: '10/09/2026 16:20', tipoGestion: 'Solicitud de vacaciones', asunto: 'Solicitud de feriado legal', contenido: 'Solicito feriado legal entre el 01 y el 15 de noviembre.', archivos: 'comprobante.pdf', estado: 'Enviado' }
+        ];
+
+        var mesesAnual = (function () {
+          var nombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+          var estados = ['SIN_INFORMACION', 'SIN_INFORMACION', 'ASISTIO', 'ASISTIO', 'JUSTIFICADO', 'APELACION_ACOGIDA', 'FALTA', 'ASISTIO', 'ASISTIO', 'FUTURO', 'FUTURO', 'FUTURO'];
+          var detalles = { SIN_INFORMACION: 'No hay registro de actividades de este mes.', ASISTIO: 'Asististe a la actividad.', JUSTIFICADO: 'No asististe, pero tu justificación fue aprobada.', APELACION_ACOGIDA: 'Tu apelación fue acogida.', FALTA: 'Hubo una actividad y no registras participación.', FUTURO: 'Todavía no ocurre.' };
+          return nombres.map(function (n, i) {
+            var e = estados[i], conAct = (e !== 'SIN_INFORMACION' && e !== 'FUTURO');
+            var m = { mes: '2026-' + ('0' + (i + 1)).slice(-2), numero: i + 1, nombre: n, estado: e, detalle: detalles[e],
+                      cantidadActividades: conAct ? 1 : 0,
+                      actividades: conAct ? [{ nombre: 'Asamblea Ordinaria', region: perfilDemo.region, fecha: '', precision: 'MENSUAL' }] : [] };
+            if (e === 'FALTA') m.apelable = true;
+            return m;
+          });
+        })();
+
+        var bloque = function (a, j, ap, r, f) {
+          var base = a + j + ap + r + f;
+          return { conteos: { ASISTIO: a, JUSTIFICADO: j, APELACION_ACOGIDA: ap, EN_REVISION: r, EN_PLAZO: 0, FALTA: f },
+                   participaron: a + j + ap, base: base, totalActivos: base + 2, fueraDeBase: { SIN_ACTIVIDAD: 0, SIN_REGION: 2 }, actividades: 1 };
+        };
+        var participacionGeneral = function (tk, mes) {
+          return {
+            success: true, sesionExpirada: false, mes: mes || '2026-09', mesLegible: 'septiembre de 2026',
+            meses: ['2026-09', '2026-08', '2026-07'], rol: 'ADMIN', puedeVerNacional: true,
+            nacional: { conteos: { ASISTIO: 1210, JUSTIFICADO: 160, APELACION_ACOGIDA: 4, EN_REVISION: 12, EN_PLAZO: 0, FALTA: 910 },
+                        participaron: 1374, base: 2296, totalActivos: 2320, fueraDeBase: { SIN_ACTIVIDAD: 0, SIN_REGION: 24 }, actividades: 15, regionesConActividad: 15 },
+            regional: bloque(180, 40, 3, 6, 90),
+            region: perfilDemo.region, regionClave: '07RMREGIONMETROPOLITANASANTIAGO',
+            regiones: [
+              { clave: '07RMREGIONMETROPOLITANASANTIAGO', etiqueta: '07. RM Region Metropolitana - Santiago.', bloque: bloque(180, 40, 3, 6, 90) },
+              { clave: '05VREGIONDEVALPARAISO', etiqueta: '05. V Region de Valparaíso.', bloque: bloque(75, 12, 0, 2, 58) },
+              { clave: '11VIIIREGIONDELBIOBIO', etiqueta: '11. VIII Region del Biobío.', bloque: bloque(40, 9, 1, 0, 22) }
+            ],
+            sinRegion: false, fuentes: {}, message: ''
+          };
+        };
+
+        var foroCategorias = [
+          { id: 'C1', nombre: 'Contrato colectivo', descripcion: 'Dudas y comentarios sobre los beneficios vigentes.' },
+          { id: 'C2', nombre: 'Seguridad laboral', descripcion: 'Condiciones de trabajo y prevención.' },
+          { id: 'C3', nombre: 'Comunidad', descripcion: 'Actividades, deportes y vida sindical.' }
+        ];
+        var foroTema = function (id, cat, titulo, texto, autor, rol, hace, nResp, fijado) {
+          return { id: id, estado: 'VISIBLE', esMio: false, autor: autor, rolAutor: rol, cargoAutor: '', fecha: ahora - hace, editado: false, verTexto: true,
+                   puedeEditarHasta: 0, puedeEditarSinPlazo: false, puedeEliminar: false, puedeReportar: true, puedeModerar: false,
+                   idCategoria: cat, categoria: (foroCategorias.filter(function (c) { return c.id === cat; })[0] || {}).nombre || '',
+                   titulo: titulo, texto: texto, nRespuestas: nResp, ultimaActividad: ahora - Math.floor(hace / 3),
+                   cerrado: false, fijado: !!fijado, archivado: false, puedeResponder: true };
+        };
+        var foroTemas = [
+          foroTema('T1', 'C1', 'Bienvenidos al foro de la comunidad', 'Este es un espacio para conversar con respeto. Lee las reglas antes de publicar.', 'DIRECTIVA SINDICAL', 'ADMIN', 20 * DIA, 2, true),
+          foroTema('T2', 'C1', '¿Cómo se calcula el bono de vacaciones?', '¿Alguien sabe si el bono se paga junto con la liquidación o aparte?', 'SOCIO EJEMPLO', 'SOCIO', 2 * DIA, 1),
+          foroTema('T3', 'C3', 'Campeonato de baby fútbol de octubre', 'Estamos armando equipos por centro. ¡Anímense!', 'SOCIA EJEMPLO', 'SOCIO', 5 * DIA, 0)
+        ];
+        var foroRespuestas = {
+          T1: [{ id: 'R1', idTema: 'T1', texto: '¡Gracias por abrir este espacio!', autor: 'SOCIO EJEMPLO', rolAutor: 'SOCIO', fecha: ahora - 19 * DIA },
+               { id: 'R2', idTema: 'T1', texto: 'Muy buena iniciativa.', autor: 'SOCIA EJEMPLO', rolAutor: 'SOCIO', fecha: ahora - 18 * DIA }],
+          T2: [{ id: 'R3', idTema: 'T2', texto: 'Se paga aparte, dentro de los 5 días hábiles siguientes a la solicitud.', autor: 'DIRECTIVA SINDICAL', rolAutor: 'ADMIN', fecha: ahora - DIA }]
+        };
+        Object.keys(foroRespuestas).forEach(function (k) {
+          foroRespuestas[k] = foroRespuestas[k].map(function (r) {
+            return Object.assign({ estado: 'VISIBLE', esMio: false, cargoAutor: '', editado: false, verTexto: true, puedeEditarHasta: 0,
+                                   puedeEditarSinPlazo: false, puedeEliminar: false, puedeReportar: true, puedeModerar: false }, r);
+          });
+        });
+        var foroLimites = { temasDia: 1, respuestasDia: 10, esperaRespuestaMin: 60, minutosEdicion: 15,
+                            largo: { TITULO: 100, TITULO_MIN: 5, TEMA: 3000, RESPUESTA: 2000, MOTIVO: 200, DETALLE_REPORTE: 300, CATEGORIA_NOMBRE: 40, CATEGORIA_DESCRIPCION: 150 } };
+
+        var noticias = [
+          { tipo: 'AVISO', titulo: 'Bienvenido a la demo de SLIMAPP', bajada: 'Recorre los módulos con datos ficticios. Nada de lo que hagas aquí se guarda.', textoBoton: 'Ver mis datos', modulo: 'Mis Datos', subseccion: '', url: '' },
+          { tipo: 'ACTIVIDAD', titulo: 'SLIM Quest: aprende jugando', bajada: 'Quiz diario, niveles, logros y ranking. Este módulo funciona en la demo.', textoBoton: 'Jugar', modulo: 'MiProgreso', subseccion: '', url: '' },
+          { tipo: 'PLAZO', titulo: 'Justificaciones de la asamblea de octubre', bajada: 'Plazo hasta el 31 de octubre para justificar tu inasistencia.', textoBoton: 'Justificar', modulo: 'Justificaciones', subseccion: '', url: '' }
+        ];
+        var noticiasAdmin = noticias.map(function (n, i) {
+          return { fila: i + 2, activa: true, tipo: n.tipo, titulo: n.titulo, bajada: n.bajada, desde: '', hasta: '', zona: 'TODAS LAS ZONAS',
+                   textoBoton: n.textoBoton, abre: '', enlace: '', orden: String(i + 1), estado: 'PUBLICADA',
+                   publicadoPor: 'ADMINISTRADOR DEMO', actualizadoPor: '', fechaActualizacion: '01/10/2026 09:00' };
+        });
+
+        var todosHabilitados = { success: true, prestamos: true, justificaciones: true, contrato: true, slimquest: true, calculadora: true,
+                                 permisosMedicos: true, asistencia: true, apelaciones: true, denuncias: true, gestionesEmpresa: true, denunciaJefatura: true, foro: true };
+
+        // ---------- Respuestas por función ----------
+        var DEMO_RESPUESTAS = {
+          // Sin servidor (archivo abierto directo): login y perfil también se simulan.
+          validarUsuario: function (rut, pass) {
+            var r = String(rut || '').replace(/[^0-9kK]/g, '');
+            if (r !== '111111111' && r !== '222222222') return { success: false, errorType: 'rut', message: 'En la demo solo existen las cuentas 11.111.111-1 (socio) y 22.222.222-2 (administrador).' };
+            if (String(pass || '').trim().toUpperCase() !== 'DEMO') return { success: false, errorType: 'password', message: 'La contraseña de la demo es DEMO.' };
+            var admin = r === '222222222';
+            return { success: true, message: 'Login exitoso', sessionToken: 'demo-' + ahora, user: admin ? 'Administrador Demo' : 'Socio Demo', role: admin ? 'ADMIN' : 'SOCIO', state: 'ACTIVO', estadoNegColect: 'ADHERIDO' };
+          },
+          obtenerDatosUsuario: function () { return { success: true, datos: perfilDemo }; },
+          cerrarSesionUsuario: function () { return { success: true }; },
+          recuperarContrasena: function () { return { success: false, message: 'En la demo no hay recuperación de contraseña: usa la clave DEMO.' }; },
+          obtenerNoticiasInicio: function () { return { success: true, noticias: noticias }; },
+          listarNoticiasAdmin: function () {
+            return { success: true, noticias: noticiasAdmin, opciones: {
+              tipos: ['ACTIVIDAD', 'NOTICIA', 'PLAZO', 'AVISO'], zonas: ['TODAS LAS ZONAS', perfilDemo.region],
+              destinos: ['Justificar inasistencia', 'Apelar una multa', 'Permiso médico', 'Pedir un préstamo', 'Mis datos', 'Mi participación', 'SLIM Quest', 'Foro'],
+              abreEnlace: 'Enlace externo (columna ENLACE)', largo: { TITULO: 70, BAJADA: 110, BOTON: 30 }, maximo: 5 } };
+          },
+
+          // Interruptores de módulo: en la demo todo está visible.
+          obtenerEstadosSwitchDashboard: function () { return todosHabilitados; },
+          obtenerEstadoSwitchJustificaciones: function () {
+            return { success: true, habilitado: true, fechaLimite: '', fechaEvento: null,
+                     configuraciones: [{ region: perfilDemo.region, habilitado: true, fechaLimite: '', fechaEvento: null, nombreActividad: 'Asamblea Ordinaria' }] };
+          },
+
+          // Historiales
+          obtenerHistorialPrestamos:       function () { return { success: true, registros: prestamos }; },
+          obtenerHistorialJustificaciones: function () { return { success: true, registros: justificaciones }; },
+          obtenerHistorialApelaciones:     function () { return { success: true, registros: apelaciones }; },
+          obtenerHistorialPermisosMedicos: function () { return { success: true, registros: permisosMedicos }; },
+          obtenerHistorialDenuncias:       function () { return { success: true, registros: denuncias }; },
+          obtenerHistorialGestiones:       function () { return { success: true, registros: gestiones }; },
+          obtenerGestionesDirigente:       function () { return { success: true, datos: { prestamos: prestamos, justificaciones: justificaciones, apelaciones: apelaciones, permisosMedicos: permisosMedicos } }; },
+
+          // Justificaciones: hay una actividad abierta en la región del socio demo.
+          obtenerInfoActividadPorRegion: function () {
+            return { habilitado: true, regionUsuario: perfilDemo.region, nombreActividad: 'Asamblea Ordinaria - Octubre 2026', fechaLimite: '31-10-2026', fechaEvento: '25-10-2026' };
+          },
+          verificarJustificacionActividad: function () { return { tieneJustificacion: false, codigoActividad: 'ASM-2026-10' }; },
+
+          // Participación
+          obtenerParticipacionAnual: function (tk, anio) {
+            return { success: true, sesionExpirada: false, anio: anio || '2026', anios: ['2026'], meses: mesesAnual,
+                     resumen: { actividades: 7, mesesConActividad: 7, mesesParticipados: 6, mesesSinInformacion: 2 }, message: '' };
+          },
+          obtenerParticipacionGeneral: participacionGeneral,
+
+          // Credencial
+          consultarIdCredencialBackend: function () {
+            return { success: true, rut: '11.111.111-1', nombre: 'SOCIO DEMO', cargo: 'Operador Logístico', estado: 'ACTIVO', rol: 'SOCIO', idCredencial: 'DEMO-0001', estadoCredencial: 'ENTREGADA' };
+          },
+
+          // Administración
+          obtenerRespaldosDisponibles: function () {
+            return { success: true, respaldosPorModulo: {
+              USUARIOS:  [{ fecha: '2026-10-01', fileId: 'demo1', nombre: 'BACKUP_USUARIOS_2026-10-01' }],
+              PRESTAMOS: [{ fecha: '2026-10-01', fileId: 'demo2', nombre: 'BACKUP_PRESTAMOS_2026-10-01' }]
+            } };
+          },
+
+          // Foro
+          foroObtenerInicio: function () {
+            return { success: true, ahora: Date.now(), categorias: foroCategorias, aceptoReglas: true, versionReglas: 1,
+                     esModerador: false, esAdmin: false,
+                     cupos: { temasSinLimite: false, temasRestantes: 1, respuestasSinLimite: false, respuestasRestantes: 10, esperaRespuestaSeg: 0, renuevaEn: ahora + DIA },
+                     limites: foroLimites,
+                     motivosReporte: ['Ofensivo o insultos', 'Datos personales de otra persona', 'Spam o publicidad', 'Información falsa', 'Otro'] };
+          },
+          foroListarTemas: function (tk, filtro) {
+            filtro = filtro || {};
+            var lista = (filtro.soloMios || filtro.archivados) ? [] : foroTemas.filter(function (t) { return !filtro.categoria || t.idCategoria === filtro.categoria; });
+            return { success: true, ahora: Date.now(), temas: lista, pagina: 1, total: lista.length, hayMas: false };
+          },
+          foroObtenerTema: function (tk, idTema) {
+            var tema = foroTemas.filter(function (t) { return t.id === idTema; })[0];
+            if (!tema) return { success: false, message: 'Este tema no existe.' };
+            var resp = foroRespuestas[idTema] || [];
+            return { success: true, ahora: Date.now(), tema: tema, respuestas: resp, pagina: 1, total: resp.length, hayMas: false };
+          },
+          foroListarCategoriasAdmin: function () {
+            return { success: true, categorias: foroCategorias.map(function (c) { return Object.assign({ activa: true, nTemas: 1 }, c); }), largo: { nombre: 40, descripcion: 150 } };
+          },
+          foroListarReportes: function () { return { success: true, ahora: Date.now(), items: [] }; }
+        };
+
+        function respuestaDemo(nombre, args) {
+          if (DEMO_RESPUESTAS[nombre]) return DEMO_RESPUESTAS[nombre].apply(null, args);
+          if (/^obtenerEstadoSwitch/.test(nombre)) return { success: true, habilitado: true };
+          if (/^quest/.test(nombre)) return { success: false, demo: true, message: 'SLIM Quest usa una planilla real de juego: pruébalo en la demo publicada en Apps Script.' };
+          // Acciones que modifican algo: se informa que la demo no guarda.
+          return { success: false, demo: true, message: MENSAJE_DEMO };
+        }
+
+        // ---------- Intercepción de google.script.run ----------
+        var leerRunReal = null;
+        if (hayServidor) {
+          var desc = Object.getOwnPropertyDescriptor(google.script, 'run');
+          leerRunReal = (desc && desc.get) ? function () { return desc.get.call(google.script); }
+                                           : (function (r) { return function () { return r; }; })(google.script.run);
+        }
+
+        function crearRunner(exito, fallo, objeto) {
+          return new Proxy({}, {
+            get: function (_, prop) {
+              if (prop === 'withSuccessHandler') return function (f) { return crearRunner(f, fallo, objeto); };
+              if (prop === 'withFailureHandler') return function (f) { return crearRunner(exito, f, objeto); };
+              if (prop === 'withUserObject')     return function (o) { return crearRunner(exito, fallo, o); };
+              if (typeof prop !== 'string') return undefined;
+              return function () {
+                var args = Array.prototype.slice.call(arguments);
+                if (hayServidor && DEMO_EN_VIVO.test(prop)) {
+                  var r = leerRunReal();
+                  // Noticias: si la planilla de la demo está vacía, van las de ejemplo.
+                  var alExito = (exito && prop === 'obtenerNoticiasInicio')
+                    ? function (res, o) { exito((res && res.success && res.noticias && res.noticias.length) ? res : respuestaDemo(prop, args), o); }
+                    : exito;
+                  if (alExito) r = r.withSuccessHandler(alExito);
+                  if (fallo)  r = r.withFailureHandler(fallo);
+                  if (objeto !== undefined) r = r.withUserObject(objeto);
+                  return r[prop].apply(r, args);
+                }
+                setTimeout(function () {
+                  var res;
+                  try { res = respuestaDemo(prop, args); }
+                  catch (e) { if (fallo) fallo(e, objeto); return; }
+                  if (exito) exito(res, objeto);
+                }, 450);
+              };
+            }
+          });
+        }
+
+        var runDemo = crearRunner();
+        var instalado = false;
+        if (hayServidor) {
+          try {
+            Object.defineProperty(google.script, 'run', { configurable: true, enumerable: true, get: function () { return crearRunner(); } });
+            instalado = (google.script.run !== leerRunReal());
+          } catch (e) {}
+        }
+        if (!instalado) {
+          var anterior = hayServidor ? google.script : {};
+          window.google = { script: { run: runDemo, host: anterior.host, url: anterior.url, history: anterior.history } };
+        }
+
+        // Llena el login con una cuenta demo y entra.
+        window.demoIngresar = function (tipo) {
+          var rut = document.getElementById('rut'), pass = document.getElementById('password');
+          if (!rut || !pass) return;
+          rut.value = (tipo === 'admin') ? '22.222.222-2' : '11.111.111-1';
+          pass.value = 'DEMO';
+          var form = document.getElementById('login-form');
+          if (form && form.requestSubmit) form.requestSubmit(); else if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
+        };
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -1334,6 +1636,8 @@
     </style>
   </head>
   <body class="text-slate-800 antialiased selection:bg-blue-200 selection:text-blue-900">
+    <!-- Cinta de la versión demo: siempre visible, no bloquea clics. -->
+    <div class="fixed bottom-2 left-2 z-[200] pointer-events-none select-none px-2.5 py-1 rounded-full bg-amber-500/90 text-white text-[11px] font-extrabold tracking-wide shadow-lg">DEMO · datos ficticios</div>
 
     <main class="min-h-screen w-full flex flex-col items-center justify-start p-4 py-6 sm:p-6 relative">
       <div class="fixed top-[-8%] left-[-8%] w-[500px] h-[500px] bg-blue-600 rounded-full filter blur-[120px] opacity-[0.07] pointer-events-none"></div>
@@ -1381,7 +1685,13 @@
                 <label class="flex items-center gap-2 text-slate-800 font-semibold cursor-pointer py-1"><input type="checkbox" id="remember-me" class="w-5 h-5 rounded border-slate-400 text-blue-700 focus:ring-blue-600">Recordarme</label>
                 <a href="#" onclick="recuperarContrasena()" class="text-blue-700 hover:text-blue-800 font-bold py-1">¿Olvidaste tu contraseña?</a>
               </div>
-              <p class="text-xs text-slate-600 leading-snug flex items-start gap-2 bg-slate-100 rounded-xl px-3 py-2"><span class="material-icons-round text-blue-700" style="font-size:16px;margin-top:1px;">info</span><span>Escribe tu RUT y toca <strong>«¿Olvidaste tu contraseña?»</strong>: te la enviaremos a tu correo.</span></p>
+              <div class="text-xs text-amber-900 leading-snug bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex flex-col gap-2">
+                <p class="flex items-start gap-2"><span class="material-icons-round text-amber-600" style="font-size:16px;margin-top:1px;">science</span><span><strong>Demo de portafolio.</strong> Datos ficticios: no se guarda nada ni se envían correos. Contraseña: <strong>DEMO</strong>.</span></p>
+                <div class="grid grid-cols-2 gap-2">
+                  <button type="button" onclick="demoIngresar('socio')" class="h-10 rounded-xl bg-white border border-amber-300 text-amber-900 font-bold hover:bg-amber-100 active:scale-95 transition flex flex-col items-center justify-center leading-tight"><span>Entrar como socio</span><span class="text-[10px] font-semibold opacity-80">11.111.111-1</span></button>
+                  <button type="button" onclick="demoIngresar('admin')" class="h-10 rounded-xl bg-white border border-amber-300 text-amber-900 font-bold hover:bg-amber-100 active:scale-95 transition flex flex-col items-center justify-center leading-tight"><span>Entrar como admin</span><span class="text-[10px] font-semibold opacity-80">22.222.222-2</span></button>
+                </div>
+              </div>
               <button id="btn-login" type="submit" class="w-full h-12 bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-extrabold rounded-2xl shadow-lg shadow-blue-900/25 transition flex items-center justify-center gap-2 text-base"><span>Ingresar</span><span class="material-icons-round text-xl">arrow_forward</span></button>
             </form>
             <div id="error-msg" class="hidden p-3 rounded-xl bg-red-50 text-red-700 text-sm font-semibold text-center border border-red-200 flex items-center justify-center gap-2"><span class="material-icons-round text-lg">error_outline</span><span id="error-text">Error message</span></div>
@@ -6998,112 +7308,7 @@
         }
       };
 
-      // MOCK
-      if (typeof google === 'undefined') {
-        const mockData = { rut: "12345678K", nombre: "Juan Pérez", cargo: "Op", site: "Faena", region: "RM", estado: "ACTIVO", correo: "a@a.com", contacto: "+56912345678" };
-        const mockLoans = [
-           {id: "123", fecha: "12/12/2024 10:00", tipo: "Personal - Opción A", cuotas: "5", medio: "Cuenta RUT", estado: "Solicitado", fechaTermino: "22/05/2025 10:00"},
-           {id: "456", fecha: "01/01/2025 12:30", tipo: "Vacaciones", cuotas: "3", medio: "ServiPag", estado: "Pagado", fechaTermino: "01/04/2025 12:30"},
-        ];
-        const mockAsistenciaBrigada = [
-            { actividad: "Asamblea Ordinaria Virtual - Asamblea de prueba", fecha: "13-08-2026", hora: "22:51", via: "Formulario virtual", enProceso: false, fechaOrden: new Date(2026,7,13,22,51).getTime() },
-            { actividad: "Asamblea Ordinaria - Horcones", fecha: "04-07-2026", hora: "09:12", via: "Presencial (brigadista)", enProceso: false, fechaOrden: new Date(2026,6,4,9,12).getTime() },
-            { actividad: "Reunión Informativa", fecha: "02-06-2026", hora: "18:03", via: "Registro manual", enProceso: true, fechaOrden: new Date(2026,5,2,18,3).getTime() },
-        ];
-        // Participación consolidada: un mes por cada resultado posible, para
-        // poder ver los cinco estados sin depender del servidor.
-        const mockParticipacion = [
-            { mes: "2026-08", mesLegible: "agosto de 2026",     resultado: "ASISTIO",           participo: true,  detalle: "Asististe a la actividad." },
-            { mes: "2026-07", mesLegible: "julio de 2026",      resultado: "JUSTIFICADO",       participo: true,  detalle: "No asististe, pero tu justificación fue aprobada." },
-            { mes: "2026-06", mesLegible: "junio de 2026",      resultado: "APELACION_ACOGIDA", participo: true,  detalle: "Tu apelación fue acogida: se acreditó que tu ausencia estaba justificada." },
-            { mes: "2026-05", mesLegible: "mayo de 2026",       resultado: "EN_REVISION",       participo: false, detalle: "Tienes un trámite en revisión para este mes." },
-            { mes: "2026-04", mesLegible: "abril de 2026",      resultado: "SIN_PARTICIPACION", participo: false, detalle: "No hay asistencia ni trámites aprobados para este mes." },
-        ];
-        // Vista anual: los 12 meses de 2026 cubriendo todos los estados posibles.
-        const mockParticipacionAnual = [
-            {mes:"2026-01", numero:1,  nombre:"Ene", estado:"SIN_INFORMACION",   detalle:"No hay registro de actividades de este mes.", cantidadActividades:0, actividades:[]},
-            {mes:"2026-02", numero:2,  nombre:"Feb", estado:"SIN_INFORMACION",   detalle:"No hay registro de actividades de este mes.", cantidadActividades:0, actividades:[]},
-            {mes:"2026-03", numero:3,  nombre:"Mar", estado:"SIN_INFORMACION",   detalle:"No hay registro de actividades de este mes.", cantidadActividades:0, actividades:[]},
-            {mes:"2026-04", numero:4,  nombre:"Abr", estado:"SIN_INFORMACION",   detalle:"No hay registro de actividades de este mes.", cantidadActividades:0, actividades:[]},
-            {mes:"2026-05", numero:5,  nombre:"May", estado:"ASISTIO",           detalle:"Asististe a la actividad.", cantidadActividades:1, actividades:[{nombre:"Asamblea", region:"07. RM Region Metropolitana - Santiago.", fecha:"", precision:"MENSUAL"}]},
-            {mes:"2026-06", numero:6,  nombre:"Jun", estado:"JUSTIFICADO",       detalle:"No asististe, pero tu justificación fue aprobada.", cantidadActividades:1, actividades:[{nombre:"Asamblea", region:"07. RM Region Metropolitana - Santiago.", fecha:"", precision:"MENSUAL"}]},
-            {mes:"2026-07", numero:7,  nombre:"Jul", estado:"FALTA", apelable:true, detalle:"Hubo una actividad y no registras participación.", cantidadActividades:1, actividades:[{nombre:"Asamblea", region:"07. RM Region Metropolitana - Santiago.", fecha:"", precision:"MENSUAL"}]},
-            {mes:"2026-08", numero:8,  nombre:"Ago", estado:"APELACION_ACOGIDA", detalle:"Tu apelación fue acogida.", cantidadActividades:2, actividades:[{nombre:"Asamblea Ordinaria Virtual - AGOSTO 2026", region:"07. RM Region Metropolitana - Santiago.", fecha:"15-08-2026", precision:"EXACTA"},{nombre:"Asamblea Ordinaria Virtual - AGOSTO 2026", region:"07. RM Region Metropolitana - Santiago.", fecha:"17-08-2026", precision:"EXACTA"}]},
-            {mes:"2026-09", numero:9,  nombre:"Sep", estado:"FUTURO", detalle:"Todavía no ocurre.", cantidadActividades:0, actividades:[]},
-            {mes:"2026-10", numero:10, nombre:"Oct", estado:"FUTURO", detalle:"Todavía no ocurre.", cantidadActividades:0, actividades:[]},
-            {mes:"2026-11", numero:11, nombre:"Nov", estado:"FUTURO", detalle:"Todavía no ocurre.", cantidadActividades:0, actividades:[]},
-            {mes:"2026-12", numero:12, nombre:"Dic", estado:"FUTURO", detalle:"Todavía no ocurre.", cantidadActividades:0, actividades:[]},
-        ];
-        const serverFunctions = (success, fail) => ({
-           validarUsuario: (r, p) => setTimeout(() => success({success: true, user: "Juan Pérez", role: "ADMIN", message: "OK", sessionToken: "mock-token"}), 1500),
-           cerrarSesionUsuario: (t) => setTimeout(() => success({success: true}), 100),
-           obtenerDatosUsuario: (r) => setTimeout(() => success({success: true, datos: mockData}), 1000),
-           actualizarDatoUsuario: (r, c, v) => setTimeout(() => success({success: true, message: "OK"}), 1500),
-           crearSolicitudPrestamo: (r, t, c, m, rb) => setTimeout(() => success({success: true, message: "Solicitud creada"}), 2000),
-           obtenerHistorialPrestamos: (r) => setTimeout(() => success({success: true, registros: mockLoans}), 1000),
-           eliminarSolicitud: (id, r) => setTimeout(() => success({success: true, message: "Eliminado"}), 1000),
-           modificarSolicitud: (id, c, m) => setTimeout(() => success({success: true, message: "Modificado"}), 1500),
-           enviarJustificacion: (r, t, m, f, rb) => setTimeout(() => success({success: true, message: "Enviado"}), 2000),
-           obtenerHistorialJustificaciones: (r) => setTimeout(() => success({success: true, registros: [
-               {id: "j1", fecha: "2024-01-01", tipo: "Licencia Médica", motivo: "Gripe", estado: "Enviado", url: "", gestion: "Socio", nomDirigente: ""},
-           ]}), 1000),
-           eliminarJustificacion: (id, r) => setTimeout(() => success({success: true, message: "Eliminado"}), 1000),
-           obtenerEstadoSwitchJustificaciones: () => setTimeout(() => success({habilitado: true, fechaLimite: ""}), 500),
-           actualizarSwitchJustificaciones: (e, f) => setTimeout(() => success({success: true}), 500),
-           obtenerAsistenciaBrigada: (t) => setTimeout(() => success({success: true, sesionExpirada: false, registros: mockAsistenciaBrigada, message: ""}), 1200),
-           obtenerParticipacionSocio: (t) => setTimeout(() => success({success: true, sesionExpirada: false, meses: mockParticipacion, fuentes: {asistencia:{ok:true,mensaje:""}, justificaciones:{ok:true,mensaje:""}, apelaciones:{ok:true,mensaje:""}}, message: ""}), 1800),
-           // Consolidado general: cifras de ejemplo para ver las dos donas y el
-           // panel de zonas sin servidor. rol ADMIN => llega todo.
-           obtenerParticipacionGeneral: (tk, m, reg) => setTimeout(() => success({
-              success: true, sesionExpirada: false, mes: m || "2026-08", mesLegible: "agosto de 2026",
-              meses: ["2026-08", "2026-07"], rol: "ADMIN", puedeVerNacional: true,
-              nacional: {
-                 conteos: {ASISTIO: 1447, JUSTIFICADO: 185, APELACION_ACOGIDA: 2, EN_REVISION: 13, EN_PLAZO: 0, FALTA: 1075},
-                 participaron: 1634, base: 2722, totalActivos: 2742,
-                 fueraDeBase: {SIN_ACTIVIDAD: 0, SIN_REGION: 20},
-                 actividades: 17, regionesConActividad: 17
-              },
-              regional: {
-                 conteos: {ASISTIO: 12, JUSTIFICADO: 3, APELACION_ACOGIDA: 0, EN_REVISION: 0, EN_PLAZO: 0, FALTA: 11},
-                 participaron: 15, base: 26, totalActivos: 26,
-                 fueraDeBase: {SIN_ACTIVIDAD: 0, SIN_REGION: 0}, actividades: 1
-              },
-              region: "11. VIII Region del Biobío - Horcones.", regionClave: "11VIIIREGIONDELBIOBIOHORCONES",
-              regiones: [
-                 {clave:"07RMREGIONMETROPOLITANASANTIAGO", etiqueta:"07. RM Region Metropolitana - Santiago.", bloque:{conteos:{ASISTIO:214,JUSTIFICADO:46,APELACION_ACOGIDA:5,EN_REVISION:11,EN_PLAZO:0,FALTA:92}, participaron:265, base:368, totalActivos:371, fueraDeBase:{SIN_ACTIVIDAD:0, SIN_REGION:3}, actividades:2}},
-                 {clave:"11VIIIREGIONDELBIOBIOHORCONES", etiqueta:"11. VIII Region del Biobío - Horcones.", bloque:{conteos:{ASISTIO:12,JUSTIFICADO:3,APELACION_ACOGIDA:0,EN_REVISION:0,EN_PLAZO:0,FALTA:11}, participaron:15, base:26, totalActivos:26, fueraDeBase:{SIN_ACTIVIDAD:0, SIN_REGION:0}, actividades:1}},
-                 {clave:"05VREGIONDEVALPARAISO", etiqueta:"05. V Region de Valparaíso.", bloque:{conteos:{ASISTIO:88,JUSTIFICADO:14,APELACION_ACOGIDA:0,EN_REVISION:2,EN_PLAZO:0,FALTA:61}, participaron:102, base:165, totalActivos:167, fueraDeBase:{SIN_ACTIVIDAD:0, SIN_REGION:2}, actividades:1}},
-              ],
-              sinRegion: false, fuentes: {}, message: ""
-           }), 2200),
-           obtenerParticipacionAnual: (t, a) => setTimeout(() => success({success: true, sesionExpirada: false, anio: a || "2026", anios: ["2026"], meses: mockParticipacionAnual, resumen: {actividades: 6, mesesConActividad: 4, mesesParticipados: 3, mesesSinInformacion: 4}, message: ""}), 1800),
-           enviarApelacion: (rG, mes, tipo, det, archComp, archLiq, rB) => setTimeout(() => success({success: true, message: "Apelación enviada"}), 2000),
-           obtenerHistorialApelaciones: (r) => setTimeout(() => success({success: true, registros: [
-              {id: "ap1", fecha: "2025-03-15", mesApelacion: "2025-03", tipoMotivo: "Licencia Médica", detalleMotivo: "", urlComprobante: "http://", urlLiquidacion: "http://", estado: "Enviado", obs: "", gestion: "Socio", nomDirigente: "", urlComprobanteDevolucion: ""}
-           ]}), 1000),
-           eliminarApelacion: (id, r) => setTimeout(() => success({success: true, message: "Eliminado"}), 1000),
-           solicitarPermisoMedico: (rG, tipo, fechaInicio, mot, rB) => setTimeout(() => success({success: true, message: "Permiso solicitado"}), 2000),
-           obtenerHistorialPermisosMedicos: (r) => setTimeout(() => success({success: true, registros: []}), 1000),
-           adjuntarDocumentoPermiso: (id, arch) => setTimeout(() => success({success: true, message: "Documento adjuntado"}), 2000),
-           eliminarPermisoMedico: (id) => setTimeout(() => success({success: true, message: "Eliminado"}), 1000),
-           obtenerGestionesDirigente: (r) => setTimeout(() => success({success: true, datos: {prestamos: [], justificaciones: [], apelaciones: [], permisosMedicos: []}}), 1000),
-           recuperarContrasena: (r) => setTimeout(() => success({success: true, correo: "ejemplo@correo.com"}), 1000),
-           respaldarBasesDeDatos: (r) => setTimeout(() => success({success: true, respaldados: ["USUARIOS", "PRESTAMOS"], errores: []}), 2000),
-           obtenerRespaldosDisponibles: (r) => setTimeout(() => success({success: true, respaldosPorModulo: {
-              USUARIOS:  [{fecha: "2026-07-03", fileId: "mock1", nombre: "BACKUP_USUARIOS_2026-07-03"}],
-              PRESTAMOS: [{fecha: "2026-07-03", fileId: "mock2", nombre: "BACKUP_PRESTAMOS_2026-07-03"}]
-           }}), 800),
-           restaurarBaseDeDatos: (r, clave, fileId) => setTimeout(() => success({success: true, restauradas: ["USUARIOS"], omitidas: [], errores: [], respaldoSeguridad: "PRE_RESTAURACION_" + clave + "_mock"}), 2000),
-           enviarDenunciaJefatura: (d) => setTimeout(() => success({success: true, message: "Denuncia registrada", idDenuncia: "DJ-1234"}), 2000),
-           obtenerHistorialDenuncias: (r) => setTimeout(() => success({success: true, registros: [{id:"DJ-1234",fecha:"01/01/2025 10:00:00",categoria:"Ley Karin (Ley 21.643)",subcategoria:"Acoso laboral",tipoCargo:"Supervisor / Jefatura",denunciado:"Juan Pérez",lugar:"Mall Costanera",fechaEvento:"2024-12-15",descripcion:"Descripción de ejemplo.",urlArchivo:"Sin archivo",estado:"Enviado",gestion:"Socio"}]}), 1000),
-           obtenerEstadoSwitchDenuncias: () => setTimeout(() => success({success: true, habilitado: true}), 300),
-           toggleSwitchDenuncias: (e) => setTimeout(() => success({success: true}), 500),
-        });
-        window.google = { script: { run: { withSuccessHandler: (success) => {
-             const funcs = serverFunctions(success, console.error);
-             return { withFailureHandler: (fail) => serverFunctions(success, fail), ...funcs };
-        }}}};
-      }
+      // Los datos de ejemplo viven en la CAPA DEMO del <head>.
 
       // --- HELPERS ---
       function formatRutDisplay(rutRaw) {

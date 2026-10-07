@@ -2504,7 +2504,7 @@ function enviarCorreoNivel(correo, nombre, gradoNuevo, xpTotal) {
   var html = _construirHtmlDiplomaNivel_(idx, nombre, xpTotal, _dipFechaHoy_(), WEBAPP_BASE_URL || '');
 
   try {
-    MailApp.sendEmail({
+    if (!_correoBloqueadoDemo_('gamificacion')) MailApp.sendEmail({
       to: correo,
       subject: g.icono + ' ¡Subiste a ' + g.nombre + '! Tu certificado de SLIM Quest',
       htmlBody: html,
@@ -2609,7 +2609,7 @@ function enviarCorreoGraduacionEscuela_(correo, nombre, prog) {
     return;
   }
   try {
-    MailApp.sendEmail({
+    if (!_correoBloqueadoDemo_('gamificacion')) MailApp.sendEmail({
       to: correo,
       subject: '🎓 Te graduaste de la ' + ESCUELA_DIRIGENCIAL.titulo + ' — SLIM Quest',
       htmlBody: _construirHtmlDiplomaEscuela_(nombre, prog, _dipFechaHoy_(), WEBAPP_BASE_URL || ''),
@@ -2648,7 +2648,7 @@ function _probarDiplomaNivelDesdeEditor() {
   for (var i = 1; i < GRADOS_SLIM.length; i++) {
     var g = GRADOS_SLIM[i];
     var html = _construirHtmlDiplomaNivel_(i, 'SOCIA DE PRUEBA', g.minXP + 180, fecha, WEBAPP_BASE_URL || '');
-    MailApp.sendEmail({
+    if (!_correoBloqueadoDemo_('gamificacion')) MailApp.sendEmail({
       to: destino,
       subject: '[PRUEBA] ' + g.icono + ' ¡Subiste a ' + g.nombre + '! Tu certificado de SLIM Quest',
       htmlBody: html,
@@ -2658,7 +2658,7 @@ function _probarDiplomaNivelDesdeEditor() {
   // Graduacion, con el banco real y todas las ramas como dominadas.
   var banco = _leerBancoQuest_();
   var todas = banco.filter(function(p) { return p.nivel === 'DIRIGENTE'; }).map(function(p) { return p.id; });
-  MailApp.sendEmail({
+  if (!_correoBloqueadoDemo_('gamificacion')) MailApp.sendEmail({
     to: destino,
     subject: '[PRUEBA] 🎓 Te graduaste de la ' + ESCUELA_DIRIGENCIAL.titulo + ' — SLIM Quest',
     htmlBody: _construirHtmlDiplomaEscuela_('SOCIA DE PRUEBA', _progresoEscuela_(banco, todas, []), fecha, WEBAPP_BASE_URL || ''),

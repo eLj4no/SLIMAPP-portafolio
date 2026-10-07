@@ -386,7 +386,7 @@ function _enviarInformeFaltas(datos, rutSolicitante) {
     // Un archivo adjunto y no una hoja compartida en Drive, a proposito: no hay
     // que compartirlo con nadie, no queda acumulando permisos que despues nadie
     // revisa, y viaja con el correo a donde el ADMIN lo necesite.
-    GmailApp.sendEmail(destinatarios.join(','), asunto, _textoPlanoInformeFaltas(datos), {
+    if (!_correoBloqueadoDemo_('informeFaltas')) GmailApp.sendEmail(destinatarios.join(','), asunto, _textoPlanoInformeFaltas(datos), {
       htmlBody: _htmlInformeFaltas(datos, rutSolicitante),
       attachments: [adjunto],
       name: 'Sindicato SLIM N°3'

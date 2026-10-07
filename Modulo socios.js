@@ -10,6 +10,7 @@
  * Valida usuario (Login)
  */
 function validarUsuario(rutInput, passwordInput) {
+  if (MODO_DEMO) return _validarUsuarioDemo_(rutInput, passwordInput);
   try {
     _ensureConfig();
     var rutLimpio = cleanRut(rutInput);
@@ -42,9 +43,53 @@ function validarUsuario(rutInput, passwordInput) {
 }
 
 /**
+ * Login de la demo: solo las cuentas públicas de DEMO_CUENTAS. La sesión se
+ * abre con una identidad de visitante nueva (ver DEMO_PREFIJO_VISITANTE), y el
+ * rol que se devuelve solo decide qué pantallas muestra el navegador.
+ */
+function _validarUsuarioDemo_(rutInput, passwordInput) {
+  var cuenta = DEMO_CUENTAS[cleanRut(rutInput)];
+  if (!cuenta) {
+    return { success: false, errorType: "rut",
+             message: "En la demo solo existen las cuentas 11.111.111-1 (socio) y 22.222.222-2 (administrador)." };
+  }
+  if (String(passwordInput || '').trim().toUpperCase() !== cuenta.clave) {
+    return { success: false, errorType: "password", message: "La contraseña de la demo es DEMO." };
+  }
+  var visitante = DEMO_PREFIJO_VISITANTE + String(Math.floor(100000 + Math.random() * 900000));
+  return {
+    success: true,
+    message: "Login exitoso",
+    sessionToken: crearSesionUsuario(visitante),
+    user: cuenta.rol === 'ADMIN' ? 'Administrador Demo' : 'Socio Demo',
+    role: cuenta.rol,
+    state: "ACTIVO",
+    estadoNegColect: "ADHERIDO"
+  };
+}
+
+/**
  * Obtener datos completos del usuario
  */
 function obtenerDatosUsuario(rutInput) {
+  if (MODO_DEMO) {
+    var demo = _usuarioDemo_(cleanRut(rutInput));
+    if (!demo.encontrado) return { success: false, message: "Datos no encontrados." };
+    return {
+      success: true,
+      datos: {
+        rut: demo.rut, nombre: demo.nombre, cargo: demo.cargo, site: demo.site,
+        fechaIngreso: demo.fechaIngreso, region: demo.region, estado: demo.estado,
+        correo: demo.correo, contacto: demo.contacto, estadoNegColect: demo.estadoNegColect,
+        banco: demo.banco, tipoCuenta: demo.tipoCuenta, numeroCuenta: demo.numeroCuenta,
+        tallaPolera: "M", tallaPolar: "L", tallaPantalon: "42", tallaCalzado: "41",
+        calzadoEspecial: "NO", urlCertPieDiabetico: "",
+        supervisor: demo.supervisor, correoSupervisor: demo.correoSupervisor,
+        estadoCredencial: "ENTREGADA",
+        docFallecimientoUrl: "", docFallecimientoEstado: "SIN DOCUMENTO", docFallecimientoFecha: ""
+      }
+    };
+  }
   try {
     var sheet = getSheet('USUARIOS', 'USUARIOS');
     var rutLimpio = cleanRut(rutInput);
@@ -102,6 +147,7 @@ function obtenerDatosUsuario(rutInput) {
  * Obtener datos de usuario por RUT — Función auxiliar centralizada con caché
  */
 function obtenerUsuarioPorRut(rutInput) {
+  if (MODO_DEMO) return _usuarioDemo_(cleanRut(rutInput));
   _ensureConfig();
   var cache = CacheService.getScriptCache();
   var rutLimpio = cleanRut(rutInput);
@@ -156,6 +202,7 @@ function obtenerUsuarioPorRut(rutInput) {
 // ==========================================
 
 function recuperarContrasena(rutInput) {
+  if (MODO_DEMO) return { success: false, message: "En la demo no hay recuperación de contraseña: usa la clave DEMO." };
   try {
     var sheet = getSheet('USUARIOS', 'USUARIOS');
     var rutLimpio = cleanRut(rutInput);
@@ -170,6 +217,7 @@ function recuperarContrasena(rutInput) {
 }
 
 function enviarContrasenaCorreo(rutInput) {
+  if (MODO_DEMO) return _respuestaDemo_();
   try {
     var sheet = getSheet('USUARIOS', 'USUARIOS');
     var rutLimpio = cleanRut(rutInput);
@@ -1211,7 +1259,7 @@ function enviarNotificacionCredencial(correo, nombre, estadoNuevo, rut) {
     '<p style="color:#64748b;font-size:11px;margin:0;">Sindicato SLIM N°3 · No responder a este correo</p></div>' +
     '</div></body></html>';
 
-  MailApp.sendEmail({
+  if (!_correoBloqueadoDemo_('socios')) MailApp.sendEmail({
     to: correo,
     subject: info.icono + ' Credencial Sindical: ' + estadoNuevo + ' - Sindicato SLIM N°3',
     htmlBody: htmlBody,

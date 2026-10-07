@@ -4,6 +4,26 @@ Aplicación web en producción para el **Sindicato SLIM N°3** (Chile), que digi
 
 > Este repositorio es una **versión pública y sanitizada** del proyecto, publicada como portafolio. Los IDs de planillas y carpetas, las URLs de despliegue, los correos y cualquier dato personal se reemplazaron por marcadores o se retiraron. No contiene datos de socios.
 
+## Versión demo
+
+Esta copia corre en **modo demo** (`MODO_DEMO = true` en `Global.js`): es un cascarón que muestra todas las interfaces y flujos, sin datos reales y sin enviar correos.
+
+| | En la demo |
+|---|---|
+| **Acceso** | Cuentas ficticias: `11.111.111-1` (socio) y `22.222.222-2` (administrador), contraseña `DEMO`. El login trae botones de acceso rápido. |
+| **SLIM Quest** | Funciona de verdad contra una planilla de juego propia de la demo. Cada ingreso recibe una identidad de visitante, así que cada persona tiene su quiz diario y aparece en el ranking. |
+| **Noticias** | Lee una planilla de noticias si está configurada; si está vacía, muestra noticias de ejemplo. No se pueden publicar ni editar. |
+| **Resto de módulos** | Préstamos, justificaciones, apelaciones, permisos médicos, trámites, denuncias, participación, foro, credencial y panel de administración muestran datos ficticios. Enviar, modificar o eliminar responde con un aviso de demo. |
+
+**Cómo se protege** (en el servidor, que es lo que un visitante no puede alterar desde el navegador):
+
+- `getSpreadsheet()` solo abre las planillas de `DEMO_SPREADSHEETS_PERMITIDAS` (juego y noticias). Los IDs de las demás, las carpetas de Drive y los correos institucionales se vacían al cargar la configuración, aunque existan en las propiedades del script.
+- El manifiesto (`appsscript.json`) solo pide el scope de **Sheets**: sin Gmail, MailApp, Drive, activadores ni peticiones externas. Además, cada envío de correo y cada subida a Drive se corta antes de ejecutarse.
+- El servidor no reconoce privilegios: la cuenta "admin demo" solo desbloquea las pantallas de administración en el navegador. Respaldos, restauraciones, interruptores de módulo y publicación de noticias quedan rechazados.
+- Los activadores programados nunca corren.
+
+La capa de datos ficticios está al inicio de `Index.html` (*CAPA DEMO*): intercepta `google.script.run`, deja pasar al servidor solo login, SLIM Quest y noticias, y responde el resto con datos de ejemplo. Si se abre `Index.html` directamente en el navegador (sin Apps Script), toda la demo funciona con esos datos, salvo SLIM Quest.
+
 ## Funcionalidades
 
 | Módulo | Qué resuelve |
@@ -52,9 +72,17 @@ appsscript.json           Manifiesto de Apps Script
 
 ## Puesta en marcha
 
-1. Crear un proyecto de Apps Script y copiar `.clasp.json.example` como `.clasp.json` con su Script ID.
-2. Copiar `config_local.example.js` como `config_local.js` y completar los IDs de las planillas y carpetas propias.
-3. `clasp push`, ejecutar `inicializarConfiguracion()` una vez desde el editor y desplegar como aplicación web.
+### Desplegar la demo
+
+1. **Usar una cuenta de Google aparte**, sin acceso a las planillas de producción. La aplicación web se ejecuta como quien la despliega: con una cuenta aislada, la demo no puede alcanzar datos reales aunque fallara todo lo demás.
+2. En esa cuenta, crear la planilla del juego: una copia de la planilla de gamificación que conserva `BANCO_PREGUNTAS` y `BANCO_ESCENARIOS`, y en la que se **borran las filas de socios** de `BD_GAMIFICACION`, `QUEST_ESTADO` y `ESCENARIOS_INTENTOS` (quedan solo los encabezados). Opcional: una planilla de noticias.
+3. Crear un proyecto de Apps Script y copiar `.clasp.json.example` como `.clasp.json` con su Script ID.
+4. Copiar `config_local.example.js` como `config_local.js` y completar **solo** `SS_GAMIFICACION` (y `SS_NOTICIAS` si corresponde). Las demás claves pueden quedar con el marcador: en modo demo se ignoran.
+5. `clasp push`, ejecutar `inicializarConfiguracion()` una vez desde el editor, autorizar (solo pedirá acceso a Sheets) y desplegar como aplicación web.
+
+### Proyecto completo (producción)
+
+Cambiar `MODO_DEMO` a `false` en `Global.js`, restaurar los scopes y el servicio avanzado de Drive en `appsscript.json` (ver historial de git) y completar todos los IDs en `config_local.js`.
 
 ## Autor
 
