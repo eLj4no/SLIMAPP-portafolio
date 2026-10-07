@@ -6,6 +6,8 @@ Aplicación web en producción para el **Sindicato SLIM N°3** (Chile), que digi
 
 ## Versión demo
 
+**[Ver la demo en línea →](https://elj4no.github.io/SLIMAPP-portafolio/Index.html)** (datos ficticios; entra con los botones "Entrar como socio" o "Entrar como admin").
+
 Esta copia corre en **modo demo** (`MODO_DEMO = true` en `Global.js`): es un cascarón que muestra todas las interfaces y flujos, sin datos reales y sin enviar correos.
 
 | | En la demo |
