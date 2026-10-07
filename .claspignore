@@ -1,0 +1,26 @@
+# Todo lo que NO es codigo del proyecto GAS.
+#
+# `banco/` es la copia de trabajo del BANCO_PREGUNTAS: vive en git para poder
+# editarla y validarla como codigo, pero NO se sube al proyecto. Si se subiera
+# serian ~266 KB (+25% del bundle) que se parsean en CADA ejecucion del webapp,
+# para un dato que se toca unas pocas veces al ano. Ademas GAS solo admite
+# appsscript.json como archivo .json.
+banco/**
+
+# Los utilitarios de un solo uso del banco (CargaPreguntasQuest.js y
+# companía) se aplicaron y se borraron del repo el 28/09/2026; se recuperan con
+# `git show 2475990:<archivo>`. Un parche nuevo del banco se escribe en la raíz,
+# se agrega AQUÍ mientras se prueba, y se borra al aplicarlo.
+
+# Fuentes de contenido y documentacion: no son codigo.
+md/**
+prompts/**
+*.md
+*.txt
+package.json
+package-lock.json
+node_modules/**
+.git/**
+
+# Plantilla publica de configuracion: no es codigo del proyecto
+config_local.example.js

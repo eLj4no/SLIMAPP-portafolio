@@ -1,0 +1,32 @@
+# clasp auth (stored in home dir, but just in case)
+.clasprc.json
+
+# IDs y configuración sensible — nunca commitear
+config_local.js
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Documentación interna de versiones (no exponer en repo)
+VERSIONING.md
+RELEASE_NOTES.md
+
+# Prompt de trabajo local (scratch, se reescribe por sesión)
+prompt.txt
+
+# Logo original del sindicato (3480 px, 1,4 MB): fuente para generar
+# versiones nuevas. La app usa una copia WebP de 240 px incrustada en
+# Index.html (.logo-sindicato); el original no se versiona por su peso.
+logo_slim.png
+
+# Apunta a un proyecto GAS concreto — usar .clasp.json.example
+.clasp.json
